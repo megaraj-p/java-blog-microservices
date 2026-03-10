@@ -1,0 +1,177 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+
+  # ── Redis (Rate Limiting) ───────────────────────────────
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:redis_secret}
+
+  # ── Cloud Gateway Routes ────────────────────────────────
+  cloud:
+    gateway:
+      # Discover service instances automatically from Eureka
+      discovery:
+        locator:
+          enabled: true
+          lower-case-service-id: true
+
+      # Global CORS policy
+      globalcors:
+        corsConfigurations:
+          '[/**]':
+            allowedOriginPatterns:
+              - "http://localhost:[*]"
+              - "https://*.enterprise-blog.com"
+            allowedMethods:
+              - GET
+              - POST
+              - PUT
+              - DELETE
+              - OPTIONS
+            allowedHeaders:
+              - Authorization
+              - Content-Type
+              - X-Request-Id
+            exposedHeaders:
+              - X-Request-Id
+            allowCredentials: true
+            maxAge: 3600
+
+      # Default circuit breaker config (applies to all routes)
+      default-filters:
+        - name: CircuitBreaker
+          args:
+            name: defaultCircuitBreaker
+            fallbackUri: forward:/fallback
+
+      routes:
+        # ── User Service ─────────────────────────────────
+        - id: user-service
+          uri: lb://user-service
+          predicates:
+            - Path=/auth/**, /users/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+
+        # ── Blog Service ─────────────────────────────────
+        - id: blog-service
+          uri: lb://blog-service
+          predicates:
+            - Path=/blogs/**, /categories/**, /tags/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 50
+                redis-rate-limiter.burstCapacity: 100
+                redis-rate-limiter.requestedTokens: 1
+
+        # ── Comment Service ───────────────────────────────
+        - id: comment-service
+          uri: lb://comment-service
+          predicates:
+            - Path=/comments/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 30
+                redis-rate-limiter.burstCapacity: 60
+                redis-rate-limiter.requestedTokens: 1
+
+        # ── Search Service ────────────────────────────────
+        - id: search-service
+          uri: lb://search-service
+          predicates:
+            - Path=/search/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 100
+                redis-rate-limiter.burstCapacity: 200
+                redis-rate-limiter.requestedTokens: 1
+
+        # ── Analytics Service ─────────────────────────────
+        - id: analytics-service
+          uri: lb://analytics-service
+          predicates:
+            - Path=/analytics/**
+          filters:
+            - name: RequestRateLimiter
+              args:
+                redis-rate-limiter.replenishRate: 20
+                redis-rate-limiter.burstCapacity: 40
+                redis-rate-limiter.requestedTokens: 1
+
+        # ── Fallback Route ────────────────────────────────
+        - id: fallback-route
+          uri: no://op
+          predicates:
+            - Path=/fallback
+          filters:
+            - SetStatus=503
+
+    # ── Circuit Breaker Config ─────────────────────────────
+    circuitbreaker:
+      resilience4j:
+        instances:
+          defaultCircuitBreaker:
+            slidingWindowSize: 10
+            failureRateThreshold: 50
+            slowCallRateThreshold: 80
+            slowCallDurationThreshold: 3000ms
+            waitDurationInOpenState: 30s
+            permittedNumberOfCallsInHalfOpenState: 3
+
+  # ── Eureka ─────────────────────────────────────────────
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-client:eureka-secret@localhost:8761/eureka/}
+    registryFetchIntervalSeconds: 5
+  instance:
+    preferIpAddress: true
+    leaseRenewalIntervalInSeconds: 10
+
+# ── JWT ─────────────────────────────────────────────────
+jwt:
+  secret: ${JWT_SECRET:enterprise-blog-super-secret-key-change-in-prod-256bits}
+
+# ── Actuator ────────────────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus,gateway
+  endpoint:
+    health:
+      show-details: always
+    gateway:
+      enabled: true
+  metrics:
+    tags:
+      service: api-gateway
+
+# ── Distributed Tracing ──────────────────────────────────
+management:
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://zipkin:9411/api/v2/spans}
+
+logging:
+  level:
+    org.springframework.cloud.gateway: DEBUG
+    com.enterprise.blog: INFO
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level [%X{traceId},%X{spanId}] %logger{36} - %msg%n"

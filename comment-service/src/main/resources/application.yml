@@ -1,0 +1,46 @@
+server:
+  port: 8083
+spring:
+  application:
+    name: comment-service
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5434/comments_db}
+    username: ${SPRING_DATASOURCE_USERNAME:blog_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:blog_secret}
+    hikari:
+      maximum-pool-size: 15
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      properties:
+        enable.idempotence: true
+        spring.json.add.type.headers: false
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-client:eureka-secret@localhost:8761/eureka/}
+  instance:
+    preferIpAddress: true
+kafka:
+  topics:
+    comment-created: comment.created
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    tags:
+      service: comment-service
+logging:
+  level:
+    com.enterprise.blog: INFO

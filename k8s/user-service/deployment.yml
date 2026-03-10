@@ -1,0 +1,106 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: user-service-config
+  namespace: enterprise-blog
+data:
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/users_db"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-client:eureka-secret@service-discovery:8761/eureka/"
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  REDIS_HOST: "redis"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: user-service-secret
+  namespace: enterprise-blog
+type: Opaque
+stringData:
+  SPRING_DATASOURCE_USERNAME: blog_user
+  SPRING_DATASOURCE_PASSWORD: blog_secret
+  JWT_SECRET: "change-this-to-a-very-long-random-secret-key-in-production-minimum-256-bits"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: enterprise-blog
+  labels:
+    app: user-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8081"
+    spec:
+      containers:
+        - name: user-service
+          image: ghcr.io/your-org/user-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: user-service-config
+            - secretRef:
+                name: user-service-secret
+          resources:
+            requests:
+              memory: "384Mi"
+              cpu: "200m"
+            limits:
+              memory: "768Mi"
+              cpu: "500m"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8081
+            initialDelaySeconds: 40
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8081
+            initialDelaySeconds: 80
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: enterprise-blog
+spec:
+  selector:
+    app: user-service
+  ports:
+    - port: 8081
+      targetPort: 8081
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: user-service-hpa
+  namespace: enterprise-blog
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: user-service
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

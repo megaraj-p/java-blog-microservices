@@ -1,0 +1,108 @@
+server:
+  port: 8081
+
+spring:
+  application:
+    name: user-service
+
+  # ── Database ─────────────────────────────────────────────
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/users_db}
+    username: ${SPRING_DATASOURCE_USERNAME:blog_user}
+    password: ${SPRING_DATASOURCE_PASSWORD:blog_secret}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        default_schema: public
+
+  # ── Redis (Caching + Session) ─────────────────────────────
+  data:
+    redis:
+      host: ${SPRING_REDIS_HOST:localhost}
+      port: ${SPRING_REDIS_PORT:6379}
+      password: ${SPRING_REDIS_PASSWORD:redis_secret}
+      lettuce:
+        pool:
+          max-active: 10
+          max-idle: 5
+          min-idle: 1
+
+  # ── Kafka ─────────────────────────────────────────────────
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      acks: all
+      retries: 3
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 1
+        spring.json.add.type.headers: false
+
+  # ── Cache ─────────────────────────────────────────────────
+  cache:
+    type: redis
+    redis:
+      time-to-live: 300000   # 5 minutes
+      cache-null-values: false
+
+# ── Eureka ───────────────────────────────────────────────
+eureka:
+  client:
+    serviceUrl:
+      defaultZone: ${EUREKA_CLIENT_SERVICEURL_DEFAULTZONE:http://eureka-client:eureka-secret@localhost:8761/eureka/}
+  instance:
+    preferIpAddress: true
+    leaseRenewalIntervalInSeconds: 10
+
+# ── JWT ──────────────────────────────────────────────────
+jwt:
+  secret: ${JWT_SECRET:enterprise-blog-super-secret-key-change-in-prod-256bits}
+  access-token:
+    expiration-ms: ${JWT_ACCESS_EXPIRATION:900000}    # 15 minutes
+  refresh-token:
+    expiration-ms: ${JWT_REFRESH_EXPIRATION:604800000} # 7 days
+
+# ── Kafka Topics ─────────────────────────────────────────
+kafka:
+  topics:
+    user-registered: user.registered
+
+# ── Actuator / Prometheus ────────────────────────────────
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    tags:
+      service: user-service
+  tracing:
+    sampling:
+      probability: 1.0
+  zipkin:
+    tracing:
+      endpoint: ${ZIPKIN_URL:http://zipkin:9411/api/v2/spans}
+
+logging:
+  level:
+    com.enterprise.blog: INFO
+    org.springframework.security: WARN
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level [%X{traceId},%X{spanId}] %logger{36} - %msg%n"

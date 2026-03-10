@@ -1,0 +1,85 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: service-discovery-config
+  namespace: enterprise-blog
+data:
+  EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+  MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,info,metrics,prometheus"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: service-discovery-secret
+  namespace: enterprise-blog
+type: Opaque
+stringData:
+  EUREKA_SERVER_USERNAME: eureka-client
+  EUREKA_SERVER_PASSWORD: eureka-secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: service-discovery
+  namespace: enterprise-blog
+  labels:
+    app: service-discovery
+    version: "1.0.0"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: service-discovery
+  template:
+    metadata:
+      labels:
+        app: service-discovery
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8761"
+    spec:
+      containers:
+        - name: service-discovery
+          image: ghcr.io/your-org/service-discovery:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8761
+          envFrom:
+            - configMapRef:
+                name: service-discovery-config
+            - secretRef:
+                name: service-discovery-secret
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "250m"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8761
+            initialDelaySeconds: 60
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: service-discovery
+  namespace: enterprise-blog
+spec:
+  selector:
+    app: service-discovery
+  ports:
+    - port: 8761
+      targetPort: 8761

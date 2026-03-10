@@ -1,0 +1,88 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: notification-service-config
+  namespace: enterprise-blog
+data:
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/notifications_db"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-client:eureka-secret@service-discovery:8761/eureka/"
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+  MAIL_HOST: "smtp.gmail.com"
+  MAIL_PORT: "587"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: notification-service-secret
+  namespace: enterprise-blog
+type: Opaque
+stringData:
+  SPRING_DATASOURCE_USERNAME: blog_user
+  SPRING_DATASOURCE_PASSWORD: blog_secret
+  MAIL_USERNAME: noreply@enterprise-blog.com
+  MAIL_PASSWORD: change-me-in-production
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: notification-service
+  namespace: enterprise-blog
+  labels:
+    app: notification-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: notification-service
+  template:
+    metadata:
+      labels:
+        app: notification-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8085"
+    spec:
+      containers:
+        - name: notification-service
+          image: ghcr.io/your-org/notification-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8085
+          envFrom:
+            - configMapRef:
+                name: notification-service-config
+            - secretRef:
+                name: notification-service-secret
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "300m"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8085
+            initialDelaySeconds: 40
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8085
+            initialDelaySeconds: 80
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notification-service
+  namespace: enterprise-blog
+spec:
+  selector:
+    app: notification-service
+  ports:
+    - port: 8085
+      targetPort: 8085

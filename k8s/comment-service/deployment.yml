@@ -1,0 +1,104 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: comment-service-config
+  namespace: enterprise-blog
+data:
+  SPRING_DATASOURCE_URL: "jdbc:postgresql://postgres:5432/comments_db"
+  EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: "http://eureka-client:eureka-secret@service-discovery:8761/eureka/"
+  SPRING_KAFKA_BOOTSTRAP_SERVERS: "kafka:9092"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: comment-service-secret
+  namespace: enterprise-blog
+type: Opaque
+stringData:
+  SPRING_DATASOURCE_USERNAME: blog_user
+  SPRING_DATASOURCE_PASSWORD: blog_secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: comment-service
+  namespace: enterprise-blog
+  labels:
+    app: comment-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: comment-service
+  template:
+    metadata:
+      labels:
+        app: comment-service
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/actuator/prometheus"
+        prometheus.io/port: "8083"
+    spec:
+      containers:
+        - name: comment-service
+          image: ghcr.io/your-org/comment-service:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8083
+          envFrom:
+            - configMapRef:
+                name: comment-service-config
+            - secretRef:
+                name: comment-service-secret
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "150m"
+            limits:
+              memory: "512Mi"
+              cpu: "400m"
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8083
+            initialDelaySeconds: 40
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8083
+            initialDelaySeconds: 80
+            periodSeconds: 30
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: comment-service
+  namespace: enterprise-blog
+spec:
+  selector:
+    app: comment-service
+  ports:
+    - port: 8083
+      targetPort: 8083
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: comment-service-hpa
+  namespace: enterprise-blog
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: comment-service
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Welcome to Enterprise Blog</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 8px; padding: 40px; }
+        .header { background-color: #2563eb; color: white; padding: 20px; border-radius: 8px 8px 0 0; text-align: center; }
+        .content { padding: 30px; color: #333; }
+        .button { display: inline-block; background-color: #2563eb; color: white; padding: 12px 28px;
+                  text-decoration: none; border-radius: 6px; margin-top: 20px; }
+        .footer { text-align: center; color: #888; font-size: 12px; margin-top: 30px; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>Welcome to Enterprise Blog!</h1>
+    </div>
+    <div class="content">
+        <h2>Hi <span th:text="${username}">User</span>!</h2>
+        <p>Thank you for joining the Enterprise Blog Platform. Your account has been successfully created.</p>
+        <p>You can now:</p>
+        <ul>
+            <li>Browse and read articles from expert authors</li>
+            <li>Leave comments and engage with the community</li>
+            <li>Apply for an author role to publish your own posts</li>
+        </ul>
+        <a href="#" class="button">Get Started</a>
+    </div>
+    <div class="footer">
+        <p>You received this email because you registered at Enterprise Blog Platform.</p>
+    </div>
+</div>
+</body>
+</html>

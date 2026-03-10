@@ -1,0 +1,45 @@
+# ─── Build ────────────────────────────────────
+target/
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+
+# ─── Maven ────────────────────────────────────
+.mvn/
+!.mvn/wrapper/maven-wrapper.jar
+!.mvn/wrapper/maven-wrapper.properties
+
+# ─── IDE ──────────────────────────────────────
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# ─── Secrets / Environment ────────────────────
+.env
+*.env.local
+application-prod.yml
+application-local.yml
+
+# ─── Logs ─────────────────────────────────────
+logs/
+*.log
+*.log.*
+
+# ─── Test output ──────────────────────────────
+surefire-reports/
+coverage-reports/
+
+# ─── Docker ───────────────────────────────────
+.docker/
+
+# ─── Kubernetes secrets (never commit) ────────
+k8s/secrets/
+*-secret.yml

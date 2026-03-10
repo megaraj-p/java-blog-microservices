@@ -1,0 +1,41 @@
+server:
+  port: 8761
+
+spring:
+  application:
+    name: service-discovery
+  security:
+    user:
+      name: ${EUREKA_SECURITY_USERNAME:eureka-client}
+      password: ${EUREKA_SECURITY_PASSWORD:eureka-secret}
+
+eureka:
+  instance:
+    hostname: ${HOSTNAME:localhost}
+  client:
+    # This IS the server — it does not register itself
+    registerWithEureka: false
+    fetchRegistry: false
+    serviceUrl:
+      defaultZone: http://${EUREKA_SECURITY_USERNAME:eureka-client}:${EUREKA_SECURITY_PASSWORD:eureka-secret}@${eureka.instance.hostname}:${server.port}/eureka/
+  server:
+    # Wait for services to heartbeat before routing traffic
+    waitTimeInMsWhenSyncEmpty: 0
+    # Protect against spurious instance expiry in partitioned networks
+    enableSelfPreservation: true
+    renewalPercentThreshold: 0.85
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+logging:
+  level:
+    com.enterprise.blog: INFO
+    com.netflix.eureka: WARN
+    com.netflix.discovery: WARN

@@ -1,0 +1,488 @@
+# ============================================================
+# Enterprise Blog Platform — Full Local Development Stack
+# ============================================================
+# Usage:
+#   docker-compose up -d                  Start all services
+#   docker-compose up -d postgres-users   Start specific service
+#   docker-compose logs -f blog-service   Follow logs
+#   docker-compose down -v                Stop and remove volumes
+
+networks:
+  blog-network:
+    driver: bridge
+
+volumes:
+  postgres-users-data:
+  postgres-blogs-data:
+  postgres-comments-data:
+  postgres-notifications-data:
+  postgres-analytics-data:
+  redis-data:
+  kafka-data:
+  zookeeper-data:
+  elasticsearch-data:
+  prometheus-data:
+  grafana-data:
+
+services:
+
+  # ─────────────────────────────────────────────────────────
+  # DATABASES — One per service (Database per Service pattern)
+  # ─────────────────────────────────────────────────────────
+
+  postgres-users:
+    image: postgres:15-alpine
+    container_name: postgres-users
+    environment:
+      POSTGRES_DB: users_db
+      POSTGRES_USER: blog_user
+      POSTGRES_PASSWORD: blog_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-users-data:/var/lib/postgresql/data
+    networks:
+      - blog-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blog_user -d users_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-blogs:
+    image: postgres:15-alpine
+    container_name: postgres-blogs
+    environment:
+      POSTGRES_DB: blogs_db
+      POSTGRES_USER: blog_user
+      POSTGRES_PASSWORD: blog_secret
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-blogs-data:/var/lib/postgresql/data
+    networks:
+      - blog-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blog_user -d blogs_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-comments:
+    image: postgres:15-alpine
+    container_name: postgres-comments
+    environment:
+      POSTGRES_DB: comments_db
+      POSTGRES_USER: blog_user
+      POSTGRES_PASSWORD: blog_secret
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres-comments-data:/var/lib/postgresql/data
+    networks:
+      - blog-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blog_user -d comments_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-notifications:
+    image: postgres:15-alpine
+    container_name: postgres-notifications
+    environment:
+      POSTGRES_DB: notifications_db
+      POSTGRES_USER: blog_user
+      POSTGRES_PASSWORD: blog_secret
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres-notifications-data:/var/lib/postgresql/data
+    networks:
+      - blog-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blog_user -d notifications_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-analytics:
+    image: postgres:15-alpine
+    container_name: postgres-analytics
+    environment:
+      POSTGRES_DB: analytics_db
+      POSTGRES_USER: blog_user
+      POSTGRES_PASSWORD: blog_secret
+    ports:
+      - "5436:5432"
+    volumes:
+      - postgres-analytics-data:/var/lib/postgresql/data
+    networks:
+      - blog-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blog_user -d analytics_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────
+  # REDIS — Caching + Rate Limiting + Session Store
+  # ─────────────────────────────────────────────────────────
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    command: redis-server --requirepass redis_secret --maxmemory 512mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    networks:
+      - blog-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "redis_secret", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────────
+  # KAFKA — Event-Driven Messaging
+  # ─────────────────────────────────────────────────────────
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper-data:/var/lib/zookeeper
+    networks:
+      - blog-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      KAFKA_NUM_PARTITIONS: 3
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+    volumes:
+      - kafka-data:/var/lib/kafka
+    networks:
+      - blog-network
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    networks:
+      - blog-network
+
+  # ─────────────────────────────────────────────────────────
+  # ELASTICSEARCH + KIBANA — Search + Log Visualization
+  # ─────────────────────────────────────────────────────────
+
+  elasticsearch:
+    image: elasticsearch:8.11.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - blog-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  kibana:
+    image: kibana:8.11.0
+    container_name: kibana
+    depends_on:
+      - elasticsearch
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: '["http://elasticsearch:9200"]'
+    networks:
+      - blog-network
+
+  logstash:
+    image: logstash:8.11.0
+    container_name: logstash
+    depends_on:
+      - elasticsearch
+    volumes:
+      - ./config/logstash/pipeline:/usr/share/logstash/pipeline
+    ports:
+      - "5044:5044"
+      - "9600:9600"
+    networks:
+      - blog-network
+
+  # ─────────────────────────────────────────────────────────
+  # MONITORING — Prometheus + Grafana
+  # ─────────────────────────────────────────────────────────
+
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: prometheus
+    volumes:
+      - ./config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    ports:
+      - "9090:9090"
+    networks:
+      - blog-network
+
+  grafana:
+    image: grafana/grafana:10.2.0
+    container_name: grafana
+    depends_on:
+      - prometheus
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - blog-network
+
+  # ─────────────────────────────────────────────────────────
+  # DISTRIBUTED TRACING — Zipkin
+  # ─────────────────────────────────────────────────────────
+
+  zipkin:
+    image: openzipkin/zipkin:3
+    container_name: zipkin
+    ports:
+      - "9411:9411"
+    networks:
+      - blog-network
+
+  # ─────────────────────────────────────────────────────────
+  # MICROSERVICES
+  # ─────────────────────────────────────────────────────────
+
+  service-discovery:
+    build:
+      context: ./service-discovery
+      dockerfile: Dockerfile
+    container_name: service-discovery
+    ports:
+      - "8761:8761"
+    networks:
+      - blog-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8761/actuator/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    depends_on:
+      service-discovery:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-discovery:8761/eureka/
+      REDIS_HOST: redis
+      REDIS_PASSWORD: redis_secret
+      JWT_SECRET: ${JWT_SECRET:-enterprise-blog-super-secret-key-change-in-prod-256bits}
+    networks:
+      - blog-network
+
+  user-service:
+    build:
+      context: ./user-service
+      dockerfile: Dockerfile
+    container_name: user-service
+    depends_on:
+      postgres-users:
+        condition: service_healthy
+      service-discovery:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-users:5432/users_db
+      SPRING_DATASOURCE_USERNAME: blog_user
+      SPRING_DATASOURCE_PASSWORD: blog_secret
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PASSWORD: redis_secret
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-discovery:8761/eureka/
+      JWT_SECRET: ${JWT_SECRET:-enterprise-blog-super-secret-key-change-in-prod-256bits}
+      JWT_ACCESS_EXPIRATION: 900000
+      JWT_REFRESH_EXPIRATION: 604800000
+    networks:
+      - blog-network
+
+  blog-service:
+    build:
+      context: ./blog-service
+      dockerfile: Dockerfile
+    container_name: blog-service
+    depends_on:
+      postgres-blogs:
+        condition: service_healthy
+      service-discovery:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8082:8082"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-blogs:5432/blogs_db
+      SPRING_DATASOURCE_USERNAME: blog_user
+      SPRING_DATASOURCE_PASSWORD: blog_secret
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PASSWORD: redis_secret
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-discovery:8761/eureka/
+    networks:
+      - blog-network
+
+  comment-service:
+    build:
+      context: ./comment-service
+      dockerfile: Dockerfile
+    container_name: comment-service
+    depends_on:
+      postgres-comments:
+        condition: service_healthy
+      service-discovery:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-comments:5432/comments_db
+      SPRING_DATASOURCE_USERNAME: blog_user
+      SPRING_DATASOURCE_PASSWORD: blog_secret
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-discovery:8761/eureka/
+    networks:
+      - blog-network
+
+  search-service:
+    build:
+      context: ./search-service
+      dockerfile: Dockerfile
+    container_name: search-service
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+      service-discovery:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8084:8084"
+    environment:
+      SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-discovery:8761/eureka/
+    networks:
+      - blog-network
+
+  notification-service:
+    build:
+      context: ./notification-service
+      dockerfile: Dockerfile
+    container_name: notification-service
+    depends_on:
+      postgres-notifications:
+        condition: service_healthy
+      service-discovery:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8085:8085"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-notifications:5432/notifications_db
+      SPRING_DATASOURCE_USERNAME: blog_user
+      SPRING_DATASOURCE_PASSWORD: blog_secret
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_MAIL_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SPRING_MAIL_PORT: ${SMTP_PORT:-587}
+      SPRING_MAIL_USERNAME: ${SMTP_USERNAME:-noreply@enterprise-blog.com}
+      SPRING_MAIL_PASSWORD: ${SMTP_PASSWORD:-changeme}
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-discovery:8761/eureka/
+    networks:
+      - blog-network
+
+  analytics-service:
+    build:
+      context: ./analytics-service
+      dockerfile: Dockerfile
+    container_name: analytics-service
+    depends_on:
+      postgres-analytics:
+        condition: service_healthy
+      service-discovery:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8086:8086"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-analytics:5432/analytics_db
+      SPRING_DATASOURCE_USERNAME: blog_user
+      SPRING_DATASOURCE_PASSWORD: blog_secret
+      SPRING_REDIS_HOST: redis
+      SPRING_REDIS_PASSWORD: redis_secret
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://service-discovery:8761/eureka/
+    networks:
+      - blog-network
