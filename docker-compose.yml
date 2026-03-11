@@ -24,6 +24,7 @@ volumes:
   prometheus-data:
   grafana-data:
 
+
 services:
 
   # ─────────────────────────────────────────────────────────
@@ -44,7 +45,7 @@ services:
     networks:
       - blog-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U blog_user -d users_db"]
+      test: [ "CMD-SHELL", "pg_isready -U blog_user -d users_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -63,7 +64,7 @@ services:
     networks:
       - blog-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U blog_user -d blogs_db"]
+      test: [ "CMD-SHELL", "pg_isready -U blog_user -d blogs_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -82,7 +83,7 @@ services:
     networks:
       - blog-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U blog_user -d comments_db"]
+      test: [ "CMD-SHELL", "pg_isready -U blog_user -d comments_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -101,7 +102,7 @@ services:
     networks:
       - blog-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U blog_user -d notifications_db"]
+      test: [ "CMD-SHELL", "pg_isready -U blog_user -d notifications_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -120,7 +121,7 @@ services:
     networks:
       - blog-network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U blog_user -d analytics_db"]
+      test: [ "CMD-SHELL", "pg_isready -U blog_user -d analytics_db" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -140,7 +141,7 @@ services:
     networks:
       - blog-network
     healthcheck:
-      test: ["CMD", "redis-cli", "-a", "redis_secret", "ping"]
+      test: [ "CMD", "redis-cli", "-a", "redis_secret", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -186,7 +187,7 @@ services:
     networks:
       - blog-network
     healthcheck:
-      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      test: [ "CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -223,7 +224,7 @@ services:
     networks:
       - blog-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      test: [ "CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -307,23 +308,23 @@ services:
 
   service-discovery:
     build:
-      context: ./service-discovery
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: service-discovery/Dockerfile
     container_name: service-discovery
     ports:
       - "8761:8761"
     networks:
       - blog-network
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8761/actuator/health || exit 1"]
+      test: [ "CMD-SHELL", "wget --quiet --tries=1 --spider http://localhost:8761/actuator/health || exit 1" ]
       interval: 30s
       timeout: 10s
       retries: 5
 
   api-gateway:
     build:
-      context: ./api-gateway
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: api-gateway/Dockerfile
     container_name: api-gateway
     depends_on:
       service-discovery:
@@ -340,8 +341,8 @@ services:
 
   user-service:
     build:
-      context: ./user-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: user-service/Dockerfile
     container_name: user-service
     depends_on:
       postgres-users:
@@ -368,8 +369,8 @@ services:
 
   blog-service:
     build:
-      context: ./blog-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: blog-service/Dockerfile
     container_name: blog-service
     depends_on:
       postgres-blogs:
@@ -393,8 +394,8 @@ services:
 
   comment-service:
     build:
-      context: ./comment-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: comment-service/Dockerfile
     container_name: comment-service
     depends_on:
       postgres-comments:
@@ -416,8 +417,8 @@ services:
 
   search-service:
     build:
-      context: ./search-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: search-service/Dockerfile
     container_name: search-service
     depends_on:
       elasticsearch:
@@ -437,8 +438,8 @@ services:
 
   notification-service:
     build:
-      context: ./notification-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: notification-service/Dockerfile
     container_name: notification-service
     depends_on:
       postgres-notifications:
@@ -464,8 +465,8 @@ services:
 
   analytics-service:
     build:
-      context: ./analytics-service
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: analytics-service/Dockerfile
     container_name: analytics-service
     depends_on:
       postgres-analytics:
