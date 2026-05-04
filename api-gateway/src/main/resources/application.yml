@@ -159,9 +159,6 @@ management:
   metrics:
     tags:
       service: api-gateway
-
-# ── Distributed Tracing ──────────────────────────────────
-management:
   tracing:
     sampling:
       probability: 1.0

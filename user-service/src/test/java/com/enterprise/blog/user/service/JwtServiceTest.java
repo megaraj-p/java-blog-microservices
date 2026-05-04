@@ -124,6 +124,11 @@ class JwtServiceTest {
         assertThat(expirationTime)
                 .isGreaterThan(beforeGeneration)
                 .isCloseTo(expectedExpiration, within(1000L));
+    }
+
+    @Test
+    @DisplayName("isTokenValid: Should return true for valid token")
+    void isTokenValid_ValidToken() {
         // Arrange
         UserDetails userDetails = createUserDetails(TEST_EMAIL, "ROLE_READER");
         String token = jwtService.generateAccessToken(userDetails, TEST_USER_ID);
